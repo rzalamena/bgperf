@@ -17,3 +17,9 @@
 from docker import Client
 
 dckr = Client(version='auto')
+# Define default values for the cpuset parameter that is used when running the containers.
+# The first cpu in the system is cpu#0
+# Example use cpuset_target = "0, 2-3" to run on CPUs 0,2 and 3 (the first, third and fourth cpu in the system)
+cpuset_tester = ''
+cpuset_target = ''
+cpuset_monitor = ''

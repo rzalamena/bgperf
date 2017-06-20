@@ -20,7 +20,7 @@ class GoBGP(Container):
         super(GoBGP, self).__init__(name, image, host_dir, guest_dir)
 
     @classmethod
-    def build_image(cls, force=False, tag='bgperf/gobgp', checkout='HEAD', nocache=False):
+    def build_image(cls, force=False, tag='bgperf/gobgp', checkout='HEAD', nocache=False, cpus=''):
         cls.dockerfile = '''
 FROM golang:1.6
 WORKDIR /root
@@ -103,13 +103,13 @@ RUN go install github.com/osrg/gobgp/gobgp
                 c['apply-policy'] = {'config': a}
             return c
 
-        config['neighbors'] = [gen_neighbor_config(n) for n in conf['tester'].values() + [conf['monitor']]]
+        config['neighbors'] = [gen_neighbor_config(n) for n in conf['tester']['peers'].values() + [conf['monitor']]]
         with open('{0}/{1}'.format(self.host_dir, name), 'w') as f:
             f.write(yaml.dump(config, default_flow_style=False))
         self.config_name = name
 
-    def run(self, conf, brname=''):
-        ctn = super(GoBGP, self).run(brname)
+    def run(self, conf, brname='', cpus=''):
+        ctn = super(GoBGP, self).run(brname, cpus=cpus)
 
         if self.config_name == None:
             self.write_config(conf)

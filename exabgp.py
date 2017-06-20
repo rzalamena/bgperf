@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from base import *
+from settings import *
 
 class ExaBGP(Container):
     def __init__(self, name, host_dir, guest_dir='/root/config', image='bgperf/exabgp'):
@@ -24,7 +25,7 @@ class ExaBGP(Container):
         cls.dockerfile = '''
 FROM ubuntu:latest
 WORKDIR /root
-RUN apt-get update && apt-get install -qy git python python-setuptools gcc python-dev
+RUN apt-get update && apt-get install -qy git python python-setuptools gcc python-dev iputils-ping
 RUN easy_install pip
 RUN git clone https://github.com/Exa-Networks/exabgp && \
 (cd exabgp && git checkout {0} && pip install -r requirements.txt && python setup.py install)
@@ -32,5 +33,5 @@ RUN ln -s /root/exabgp /exabgp
 '''.format(checkout)
         super(ExaBGP, cls).build_image(force, tag, nocache)
 
-    def run(self, brname=''):
-        return super(ExaBGP, self).run(brname)
+    def run(self, brname='', cpus=''):
+        return super(ExaBGP, self).run(brname, cpus=cpus)

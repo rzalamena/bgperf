@@ -14,6 +14,8 @@
 # limitations under the License.
 
 from base import *
+from shutil import copyfile
+from settings import cpuset_target
 
 class BIRD(Container):
     def __init__(self, name, host_dir, guest_dir='/root/config', image='bgperf/bird'):
@@ -25,43 +27,35 @@ class BIRD(Container):
 FROM ubuntu:latest
 WORKDIR /root
 RUN apt-get update && apt-get install -qy git autoconf libtool gawk make \
-flex bison libncurses-dev libreadline6-dev
+flex bison libncurses-dev libreadline6-dev iputils-ping
 RUN apt-get install -qy flex
 RUN git clone https://gitlab.labs.nic.cz/labs/bird.git bird && \
-(cd bird && git checkout {0} && autoconf && ./configure && make && make install)
+(cd bird && git checkout {0} && autoconf && ./configure --enable-client --enable-pthreads --with-protocols="bgp pipe rip ospf static" && make && make install)
 '''.format(checkout)
         super(BIRD, cls).build_image(force, tag, nocache)
 
+    def gen_filter_assignment(self, n):
+        if 'filter' in n:
+            c = []
+            if 'in' not in n['filter'] or len(n['filter']['in']) == 0:
+                c.append('import all;')
+            else:
+                c.append('import where {0};'.format('&&'.join(x + '()' for x in n['filter']['in'])))
 
-    def write_config(self, conf, name='bird.conf'):
-        config = '''router id {0};
-listen bgp port 179;
-protocol device {{ }}
-protocol direct {{ disabled; }}
-protocol kernel {{ disabled; }}
-table master;
-'''.format(conf['target']['router-id'])
+            if 'out' not in n['filter'] or len(n['filter']['out']) == 0:
+                c.append('export all;')
+            else:
+                c.append('export where {0};'.format('&&'.join(x + '()' for x in n['filter']['out'])))
 
-        def gen_filter_assignment(n):
-            if 'filter' in n:
-                c = []
-                if 'in' not in n['filter'] or len(n['filter']['in']) == 0:
-                    c.append('import all;')
-                else:
-                    c.append('import where {0};'.format( '&&'.join(x + '()' for x in n['filter']['in'])))
-
-                if 'out' not in n['filter'] or len(n['filter']['out']) == 0:
-                    c.append('export all;')
-                else:
-                    c.append('export where {0};'.format( '&&'.join(x + '()' for x in n['filter']['out'])))
-
-                return '\n'.join(c)
-            return '''import all;
+            return '\n'.join(c)
+        return '''import all;
 export all;
 '''
 
-        def gen_neighbor_config(n):
-            return '''table table_{0};
+    def gen_neighbor_config(self, n, conf, add_paths_tx = False, add_paths_rx = False):
+        #code.interact(local=locals())
+        neighbor_entry = '''table table_{0};
+
 protocol pipe pipe_{0} {{
     table master;
     mode transparent;
@@ -73,10 +67,31 @@ protocol bgp bgp_{0} {{
     neighbor {2} as {0};
     table table_{0};
     import all;
-    export all;
-    rs client;
-}}
-'''.format(n['as'], conf['target']['as'], n['local-address'].split('/')[0], gen_filter_assignment(n))
+    export all;'''.format(n['as'],
+                          conf['target']['as'],
+                          n['local-address'].split('/')[0],
+                          self.gen_filter_assignment(n))
+
+        if 'implementation' in conf['monitor'] and conf['monitor']['implementation'] == 'bird':
+            if add_paths_tx:
+                neighbor_entry += '\n    add paths tx;'
+            if add_paths_rx:
+                neighbor_entry += '\n    add paths rx;'
+
+        neighbor_entry += '\n    rs client;\n}'
+        # DEBUG print neighbor_entry
+        return neighbor_entry
+
+
+    def scenario2config(self, conf, name='bird.conf'):
+        config = '''router id {0};
+listen bgp port 179;
+log "/var/log/bird.log" all;
+protocol device {{ }}
+protocol direct {{ disabled; }}
+protocol kernel {{ disabled; }}
+table master;
+'''.format(conf['target']['router-id'])
 
         def gen_prefix_filter(name, match):
             return '''function {0}()
@@ -105,7 +120,8 @@ return true;
             c = '''function {0}()
 {{
 '''.format(name)
-            c += '\n'.join('if ({0}, {1}) ~ bgp_community then return false;'.format(*v.split(':')) for v in match['value'])
+            c += '\n'.join(
+                'if ({0}, {1}) ~ bgp_community then return false;'.format(*v.split(':')) for v in match['value'])
             c += '''
 return true;
 }
@@ -116,14 +132,14 @@ return true;
             c = '''function {0}()
 {{
 '''.format(name)
-            c += '\n'.join('if ({0}, {1}, {2}) ~ bgp_ext_community then return false;'.format(*v.split(':')) for v in match['value'])
+            c += '\n'.join(
+                'if ({0}, {1}, {2}) ~ bgp_ext_community then return false;'.format(*v.split(':')) for v in
+                match['value'])
             c += '''
 return true;
 }
 '''
             return c
-
-
 
         def gen_filter(name, match):
             c = ['function {0}()'.format(name), '{']
@@ -133,6 +149,7 @@ return true;
             c.append('}')
             return '\n'.join(c) + '\n'
 
+        # write configuration to file
         with open('{0}/{1}'.format(self.host_dir, name), 'w') as f:
             f.write(config)
 
@@ -152,22 +169,44 @@ return true;
                         match_info.append((match['type'], n))
                     f.write(gen_filter(k, match_info))
 
-            for n in conf['tester'].values() + [conf['monitor']]:
-                f.write(gen_neighbor_config(n))
+            for n in conf['tester']['peers'].values():   # generate config snippets for all testers
+                f.write(self.gen_neighbor_config(n, conf))
+
+            # Add monitor section to config
+            if 'implementation' in conf['monitor'] and conf ['monitor']['implementation'] == 'bird':
+                f.write(self.gen_neighbor_config(conf['monitor'], conf, add_paths_tx=True)) # generate monitor config seperately
+            else:
+                f.write(self.gen_neighbor_config(conf['monitor'], conf))
+
             f.flush()
         self.config_name = name
+# end scenario2config
 
+    def write_config(self, conf, name='bird.conf'):
+        # TODO refactor: make it to a method and bring it to the top level.
+        if 'custom-config' in conf['target'] and conf['target']['custom-config']:
+            copyfile(conf['target']['custom-config'], '{0}/{1}'.format(self.host_dir, name))
+            with open('{0}/{1}'.format(self.host_dir, name), 'a') as f: #append monitor section to custom-target-konfig.
+                if 'implementation' in conf['monitor'] and conf ['monitor']['implementation'] == 'bird':
+                    f.write(self.gen_neighbor_config(conf['monitor'], conf, add_paths_tx=True)) # generate monitor config seperately
+                else:
+                    f.write(self.gen_neighbor_config(conf['monitor'], conf))
+            self.config_name = name
+        else:
+            print('generating BIRD config from scenario.yaml')
+            self.scenario2config(conf, name='bird.conf')
 
-    def run(self, conf, brname=''):
-        ctn = super(BIRD, self).run(brname)
+    def run(self, conf, brname='', cpus=cpuset_target):
+        ctn = super(BIRD, self).run(brname, cpus=cpus)
 
         if self.config_name == None:
             self.write_config(conf)
 
         startup = '''#!/bin/bash
 ulimit -n 65536
+mkdir -p /var/log/bird
 ip a add {0} dev eth1
-bird -c {1}/{2} 
+bird -c {1}/{2}
 '''.format(conf['target']['local-address'], self.guest_dir, self.config_name)
         filename = '{0}/start.sh'.format(self.host_dir)
         with open(filename, 'w') as f:

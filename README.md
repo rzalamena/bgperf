@@ -1,7 +1,30 @@
 bgperf
 ========
 
-bgperf is a performance measurement tool for BGP implementation.
+This is the DE-CIX enhanced version bgperf, a performance measurement tool for BGP implementations. The aim is to give back as many enhancements as possible to the original bgperf by NTT OSRG.
+
+The enhancements include:
+* a more modular way of processing arguments from the commandline
+* better metrics collection (variable interval, more data)
+* new drop-in replacement for GoBGP 'monitor' implementation using BIRD.
+* the action sequencer to wait until convergent and introduce dynamic changes (see UML diagram in /docs)
+* selective CPU allocation for all containers (with cpusets)
+* support for remote testers in another network (e.g. when you have own tester implementation in your lab)
+* support of custom config file for BIRD target (e.g. config produced by IXP toolchain)
+* add header to csv output and more metrics when using BIRD based monitor + some tweaks.
+* system-specific configuration in settings.py
+* new commandline options for most features
+* full scenario.yaml support for most features
+
+DE-CIX specific changes that can be removed safely:
+* lower mtu on all virtual ethernet adapters (for l2vpn compatibility)
+
+Still ToDo:
+* support even more actions in action sequencer
+* provide more documentation and usage examples
+* port this to recent (2017-06-14) bgperf master branch
+
+## Contents
 
 * [How to install](#how_to_install)
 * [How to use](#how_to_use)
@@ -45,6 +68,15 @@ gobgp image ... ok
 bird image ... ok
 quagga image ... ok
 ```
+
+## external tools required
+
+For metrics collection, or to perform certain actions this version of bgperf depends on external tools to be present.
+These are:
+* cpupower (part of linux-tools-generic package in Debian/Ubuntu)
+* “comcast” (https://github.com/tylertreat/comcast) a wrapper for tc and iptables written in Go.
+
+please install the tools on the system bgperf is executed. You need to configure paths
 
 ## <a name="how_to_use">How to use
 

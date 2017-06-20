@@ -25,8 +25,8 @@ class Monitor(GoBGP):
     def __init__(self, name, host_dir):
         super(Monitor, self).__init__(name, host_dir)
 
-    def run(self, conf, brname=''):
-        ctn = super(GoBGP, self).run(brname)
+    def run(self, conf, brname='', cpus=''):
+        ctn = super(GoBGP, self).run(brname, cpus=cpus)
         config = {}
         config['global'] = {
             'config': {
@@ -62,23 +62,25 @@ gobgpd -t yaml -f {1}/{2} -l {3} > {1}/gobgpd.log 2>&1
     def wait_established(self, neighbor):
         while True:
             neigh = json.loads(self.local('gobgp neighbor {0} -j'.format(neighbor)))
-            if neigh['info']['bgp_state'] == 'BGP_FSM_ESTABLISHED':
+            if neigh['state']['session-state'] == 'established':
                 return
             time.sleep(1)
 
     def stats(self, queue):
         def stats():
             cps = self.config['monitor']['check-points'] if 'check-points' in self.config['monitor'] else []
+            interval = self.config['monitor']['measurement-interval'] if 'measurement-interval' in self.config['monitor'] else 1
             while True:
                 info = json.loads(self.local('gobgp neighbor -j'))[0]
                 info['who'] = self.name
-                if 'info' in info and 'accepted' in info['info'] and len(cps) > 0 and int(cps[0]) == int(info['info']['accepted']):
+                state = info['state']
+                if 'adj-table' in state and 'accepted' in state['adj-table'] and len(cps) > 0 and int(cps[0]) == int(state['adj-table']['accepted']):
                     cps.pop(0)
                     info['checked'] = True
                 else:
                     info['checked'] = False
                 queue.put(info)
-                time.sleep(1)
+                time.sleep(interval)
 
         t = Thread(target=stats)
         t.daemon = True

@@ -31,7 +31,7 @@ class Tester(ExaBGP):
         startup = ['''#!/bin/bash
 ulimit -n 65536''']
 
-        peers = conf['tester'].values()
+        peers = conf['tester']['peers'].values()
 
         for p in peers:
             with open('{0}/{1}.conf'.format(self.host_dir, p['router-id']), 'w') as f:
@@ -69,4 +69,4 @@ exabgp {0}/{1}.conf'''.format(self.guest_dir, p['router-id']))
                     if cnt % 2 == 1:
                         if cnt > 1:
                             rm_line()
-                        print 'tester booting.. ({0}/{1})'.format(cnt/2 + 1, len(conf['tester']))
+                        print 'tester booting.. ({0}/{1})'.format(cnt/2 + 1, len(conf['tester']['peers']))

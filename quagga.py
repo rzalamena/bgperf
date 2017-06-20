@@ -56,7 +56,7 @@ neighbor {0} timers 30 90
 
         with open('{0}/{1}'.format(self.host_dir, name), 'w') as f:
             f.write(config)
-            for n in conf['tester'].values() + [conf['monitor']]:
+            for n in conf['tester']['peers'].values() + [conf['monitor']]:
                 f.write(gen_neighbor_config(n))
 
             if 'policy' in conf:
@@ -95,8 +95,8 @@ neighbor {0} timers 30 90
 
         self.config_name = name
 
-    def run(self, conf, brname=''):
-        ctn = super(Quagga, self).run(brname)
+    def run(self, conf, brname='', cpus=''):
+        ctn = super(Quagga, self).run(brname, cpus=cpus)
 
         if self.config_name == None:
             self.write_config(conf)
