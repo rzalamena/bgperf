@@ -44,7 +44,7 @@ from birdmonitor import BirdMonitor
 from settings import dckr
 import settings
 from Queue import Queue
-from subprocess import call
+from packaging import version
 
 def rm_line():
     print '\x1b[1A\x1b[2K\x1b[1D\x1b[1A'
@@ -58,8 +58,13 @@ def gc_thresh3():
 
 def doctor(args):
     ver = dckr.version()['Version']
-    ok = int(''.join(ver.split('.'))) >= 190
-    print 'docker version ... {1} ({0})'.format(ver, 'ok' if ok else 'update to 1.9.0 at least')
+    if ver.endswith('-ce'):
+        curr_version = version.parse(ver.replace('-ce', ''))
+    else:
+        curr_version = version.parse(ver)
+    min_version = version.parse('1.9.0')
+    ok = curr_version >= min_version
+    print 'docker version ... {1} ({0})'.format(ver, 'ok' if ok else 'update to {} at least'.format(min_version))
 
     print 'bgperf image',
     if img_exists('bgperf/exabgp'):
