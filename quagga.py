@@ -24,13 +24,24 @@ class Quagga(Container):
         cls.dockerfile = '''
 FROM ubuntu:latest
 WORKDIR /root
-RUN useradd -M quagga
-RUN mkdir /var/log/quagga && chown quagga:quagga /var/log/quagga
-RUN mkdir /var/run/quagga && chown quagga:quagga /var/run/quagga
-RUN apt-get update && apt-get install -qy git autoconf libtool gawk make telnet libreadline6-dev
-RUN git clone git://git.sv.gnu.org/quagga.git quagga && \
-(cd quagga && git checkout {0} && ./bootstrap.sh && \
-./configure --disable-doc --localstatedir=/var/run/quagga && make && make install)
+RUN apt-get update && apt-get install -y \
+    git autoconf libtool gawk libreadline-dev make bison flex \
+    libpython-dev pkg-config libjson-c-dev libc-ares-dev
+RUN addgroup --system --gid 93 quagga
+RUN addgroup --system --gid 86 quaggavty
+RUN adduser --system --ingroup quagga --home /var/run/quagga \
+    --gecos "Quagga suite" --shell /bin/false quagga
+RUN usermod -G quaggavty quagga
+RUN git clone --branch stable/1.0 git://git.sv.gnu.org/quagga.git quagga
+RUN cd quagga; ./bootstrap.sh; ./configure \
+    --localstatedir=/var/run/quagga \
+    --sbindir=/usr/lib/quagga \
+    --sysconfdir=/etc/quagga \
+    --enable-user=quagga \
+    --enable-group=quagga \
+    --enable-vty-group=quaggavty \
+    --disable-doc && \
+    make -j2 && make install
 RUN ldconfig
 '''.format(checkout)
         super(Quagga, cls).build_image(force, tag, nocache)
