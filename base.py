@@ -278,7 +278,10 @@ class Container(object):
             for stat in dckr.stats(self.ctn_id, decode=True):
                 cpu_percentage = 0.0
                 prev_cpu = stat['precpu_stats']['cpu_usage']['total_usage']
-                prev_system = stat['precpu_stats']['system_cpu_usage']
+                try:
+                    prev_system = stat['precpu_stats']['system_cpu_usage']
+                except KeyError:
+                    prev_system = 0
                 cpu = stat['cpu_stats']['cpu_usage']['total_usage']
                 system = stat['cpu_stats']['system_cpu_usage']
                 cpu_num = len(stat['cpu_stats']['cpu_usage']['percpu_usage'])
