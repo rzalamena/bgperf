@@ -38,27 +38,26 @@ RUN apt-get update && apt-get install -y \
     git autoconf automake libtool make gawk libreadline-dev \
     texinfo dejagnu pkg-config libpam0g-dev libjson-c-dev bison flex \
     python-pytest libc-ares-dev python3-dev libsystemd-dev
-
 RUN git clone https://github.com/FRRouting/frr.git frr
-# build, including examples and documentation to disable '--disable-doc'
-RUN cd frr && git checkout {0} && ./bootstrap.sh && \
-./configure \
-    --prefix=/usr \
-    --enable-exampledir=/usr/share/doc/frr/examples/ \
-    --localstatedir=/var/run/frr \
-    --sbindir=/usr/lib/frr \
-    --sysconfdir=/etc/frr \
-    --enable-watchfrr \
-    --enable-multipath=64 \
-    --enable-user=frr \
-    --enable-group=frr \
-    --enable-vty-group=frrvty \
-    --enable-configfile-mask=0640 \
-    --enable-logfile-mask=0640 \
-    --enable-rtadv \
-    --with-pkg-git-version \
-    --with-pkg-extra-version=-bgperf_frr
-RUN cd frr && make -j2 && make check && make install
+RUN cd frr && git fetch && git checkout {}
+RUN cd frr && ./bootstrap.sh && \
+        ./configure \
+            --prefix=/usr \
+            --enable-exampledir=/usr/share/doc/frr/examples/ \
+            --localstatedir=/var/run/frr \
+            --sbindir=/usr/lib/frr \
+            --sysconfdir=/etc/frr \
+            --enable-watchfrr \
+            --enable-multipath=64 \
+            --enable-user=frr \
+            --enable-group=frr \
+            --enable-vty-group=frrvty \
+            --enable-configfile-mask=0640 \
+            --enable-logfile-mask=0640 \
+            --enable-rtadv \
+            --with-pkg-git-version \
+            --with-pkg-extra-version=-bgperf_frr && \
+        make -j2 && make check && make install
 '''.format(checkout)
         super(FRRouting, cls).build_image(force, tag, nocache)
 
