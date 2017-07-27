@@ -75,6 +75,8 @@ class Container(object):
         if force or not img_exists(tag):
             print 'build {0}...'.format(tag)
             for line in dckr.build(fileobj=f, rm=True, tag=tag, decode=True, nocache=nocache):
+                if 'error' in line:
+                    print line['error'].strip()
                 if 'stream' in line:
                     print line['stream'].strip()
 
