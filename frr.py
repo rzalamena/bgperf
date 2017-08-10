@@ -25,7 +25,7 @@ class FRRouting(Container):
     @classmethod
     def build_image(cls, force=False, tag='bgperf/frr', checkout='HEAD', nocache=False):
         cls.dockerfile = '''
-FROM ubuntu:16.04
+FROM netdef-ubuntu
 WORKDIR /root
 # create users and groups for least-privilege support
 RUN groupadd -g 92 frr
@@ -33,14 +33,11 @@ RUN groupadd -r -g 85 frrvty
 RUN adduser --system --ingroup frr --home /var/run/frr/ \
    --gecos "FRR suite" --shell /sbin/nologin frr
 RUN usermod -a -G frrvty frr
-# install dependenciens
-RUN apt-get update && apt-get install -y \
-    git autoconf automake libtool make gawk libreadline-dev \
-    texinfo dejagnu pkg-config libpam0g-dev libjson-c-dev bison flex \
-    python-pytest libc-ares-dev python3-dev libsystemd-dev
-RUN git clone https://github.com/FRRouting/frr.git frr
-RUN cd frr && git fetch && git checkout {}
-RUN cd frr && ./bootstrap.sh && \
+RUN scp -o StrictHostKeyChecking=no \
+        ci@172.17.0.1:/tmp/frr-source.tar.gz /root/frr.tgz && \
+        tar xvzf frr.tgz && \
+        echo '{}'
+RUN cd frr-source && ./bootstrap.sh && \
         ./configure \
             --prefix=/usr \
             --enable-exampledir=/usr/share/doc/frr/examples/ \
